@@ -1,0 +1,42 @@
+name: Build and Deploy
+on:
+  push:
+    branches:
+      - franklin
+  pull_request:
+    branches:
+      - franklin
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v2
+      with:
+        persist-credentials: false
+    - name: Install Julia
+      uses: julia-actions/setup-julia@v1
+      with:
+        version: 1.9
+    - run: julia -e '
+            using Pkg; Pkg.add(["Franklin", "FranklinUtils"]);
+            Pkg.instantiate();
+            using Franklin;
+            optimize(minify=false, prerender=false);'
+    - name: Deploy (preview)
+      if: github.event_name == 'pull_request' && github.repository == github.event.pull_request.head.repo.full_name # if this build is a PR build and the PR is NOT from a fork
+      uses: JamesIves/github-pages-deploy-action@releases/v4
+      with:
+        branch: main # The branch where your website is deployed
+        folder: __site
+        token: ${{ secrets.GITHUB_TOKEN }}
+        target-folder: "previews/PR${{ github.event.number }}" # The website preview is going to be stored in the previews subfolder
+    - name: Deploy (main)
+      if: github.event_name == 'push' && github.ref == 'refs/heads/franklin'
+      uses: JamesIves/github-pages-deploy-action@releases/v4
+      with:
+          branch: main # Replace here the branch where your website is deployed
+          folder: __site
+          token: ${{ secrets.GITHUB_TOKEN }}
+          clean-exclude: |  # This makes sure that the previews are not wiped out during regular builds 
+            previews/*
